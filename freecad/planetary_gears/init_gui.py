@@ -5,8 +5,8 @@ from freecad.planetary_gears import ICONPATH
 
 
 class PlanetaryGearsWorkbench(Gui.Workbench):
-    MenuText = "planetary gears"
-    ToolTip = "planetary gears workbench"
+    MenuText = "Planetary Gears"
+    ToolTip = "Planetary Gears workbench"
     Icon = os.path.join(ICONPATH, "Gear.svg")
     toolbox = [
         "PlanetaryGearCalculatorCmd"
