@@ -24,14 +24,8 @@ class PlanetaryGearCalculatorCmd:
         gearset = App.ActiveDocument.addObject("App::Part", "GearSet")
 
         # parameters of the gears (what controls the gearset)
-        gear_properties_name = "gear_parameters"
-        gear_properties = gearset.newObject("App::FeaturePython", gear_properties_name)
+        gear_properties = gearset.newObject("App::FeaturePython", "gear_parameters")
 
-        # Center of the gearset
-        lcs0 = gearset.newObject("PartDesign::CoordinateSystem", "Center")
-        lcs0.Support = [(gearset.Origin.OriginFeatures[0], "")]
-        lcs0.MapMode = "ObjectXY"
-        lcs0.MapReversed = False
         PlanetaryGearSet(gear_properties, gearset)
 
         App.ActiveDocument.recompute()

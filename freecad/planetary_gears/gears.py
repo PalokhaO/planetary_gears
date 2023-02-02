@@ -28,13 +28,9 @@ class PlanetaryGearSet:
         self.add_computed_properties(obj)
         self.add_link_properties(obj, gearset)
 
-        # self.update_gears_teeth(obj)
-
         # Creating the actual gears
-        self.create_ring_gear(obj)
-        self.create_sun_gear(obj)
-        self.create_planet_gear(obj)
-        self.add_gear_expressions(obj)
+        obj.ring_gear = self.create_gear(obj, "ring")
+        obj.sun_gear = self.create_gear(obj, "sun")
 
         obj.Proxy = self
 
@@ -57,7 +53,7 @@ class PlanetaryGearSet:
         obj.addProperty("App::PropertyFloat", "clearance", "gearset_properties")
         obj.clearance = 0.25
         obj.addProperty("App::PropertyFloat", "backlash", "gearset_properties")
-        obj.backlash = 0.1
+        obj.backlash = 0
 
     def add_ring_properties(self, obj):
         obj.addProperty("App::PropertyInteger", "ring_teeth", "ring_properties")
@@ -91,59 +87,35 @@ class PlanetaryGearSet:
     def add_link_properties(self, obj, gearset):
         obj.addProperty("App::PropertyLinkHidden", "gearset", "links", "", 4)
         obj.gearset = gearset
-        obj.addProperty("App::PropertyLinkHidden", "gears_group", "links", "", 4)
-        obj.gears_group = obj.gearset.newObject("App::DocumentObjectGroup", "Gears")
-        obj.addProperty("App::PropertyLinkHidden", "planets_group", "links", "", 4)
-        obj.planets_group = obj.gearset.newObject("App::DocumentObjectGroup", "Planets")
+        
+        obj.addProperty("App::PropertyLinkListHidden", "planets", "links", "", 4)
 
-    def create_ring_gear(self, obj):
-        ring_gear_body = obj.gears_group.newObject("PartDesign::Body", "ring_gear")
-        ring_gear_body.Visibility = False
-        ring_gear_body.newObject("PartDesign::CoordinateSystem", "Center")
-        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", ring_gear_body)
-        obj.ring_gear = CreateInternalInvoluteGear.create()
+    def create_gear(self, obj, gear_name):
         Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", None)
-        # gear parameters
+        Gui.ActiveDocument.ActiveView.setActiveObject("part", obj.gearset)
 
-        # now add the link object which is shown in the "assembly" of the gearset
-        ring_link = obj.gearset.newObject("App::Link", "ring")
-        ring_link.setLink(ring_gear_body)
-        ring_link.setExpression("Placement.Rotation.Yaw", f"<<{obj.Name}>>.ring_angle")
+        gear_class = CreateInternalInvoluteGear if gear_name == "ring" else CreateInvoluteGear
+        gear = gear_class.create()
 
-    def create_sun_gear(self, obj):
-        sun_gear_body = obj.gears_group.newObject("PartDesign::Body", "sun_gear")
-        sun_gear_body.Visibility = False
-        sun_gear_body.newObject("PartDesign::CoordinateSystem", "Center")
-        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", sun_gear_body)
-        obj.sun_gear = CreateInvoluteGear.create()
-        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", None)
-
-        # link sun gear
-        sun_link = obj.gearset.newObject("App::Link", "sun")
-        sun_link.setLink(sun_gear_body)
-        sun_link.setExpression("Placement.Rotation.Yaw", f"<<{obj.Name}>>.sun_angle")
-
-    def create_planet_gear(self, obj):
-        planet_gear_body = obj.gears_group.newObject("PartDesign::Body", "planet_gear")
-        planet_gear_body.Visibility = False
-        planet_gear_body.newObject("PartDesign::CoordinateSystem", "Center")
-        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", planet_gear_body)
-        obj.planet_gear = CreateInvoluteGear.create()
-        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", None)
-
-    def add_gear_expressions(self, obj):
+        gear.Label = gear_name
+        gear.setExpression("teeth", f"<<{obj.Name}>>.{gear_name}_teeth")
         for param in self.passthrough_params:
-            for gear_name in self.gear_names:
-                gear = getattr(obj, f"{gear_name}_gear")
-                gear.setExpression(param,  f"<<{obj.Name}>>.{param}")
-                gear.setExpression("teeth", f"<<{obj.Name}>>.{gear_name}_teeth")
+            gear.setExpression(param,  f"<<{obj.Name}>>.{param}")
 
         # sun beta has to be negative
-        obj.sun_gear.setExpression("beta", f"-<<{obj.Name}>>.beta")
+        if gear_name == "sun":
+            gear.setExpression("beta", f"-<<{obj.Name}>>.beta")
+        # sun beta has to be negative
+        if gear_name != "planet":
+            gear.setExpression("Placement.Rotation.Yaw", f"<<{obj.Name}>>.{gear_name}_angle")
+        
+        gear.recompute()
 
-    def update_gears_teeth(self, obj):
-        for prop in ("planet_teeth", "sun_teeth", "ring_teeth"):
-            obj.setEditorMode(prop, 0)
+        return gear
+
+    def solve(self, obj):
+        for name in self.gear_names:
+            obj.setEditorMode(f"{name}_teeth", 0)
         obj.setEditorMode(f"{obj.solve_for}_teeth", 1)
 
         if obj.solve_for == "planet":
@@ -158,7 +130,7 @@ class PlanetaryGearSet:
         elif obj.solve_for == "ring":
             obj.ring_teeth = obj.sun_teeth + 2*obj.planet_teeth
 
-    def update_planets_placements(self, obj):
+    def update_planets(self, obj):
         planet_n = obj.planet_number
         planetCenterDistance = (obj.planet_dw + obj.sun_dw)/2
         ringPlanetRatio = obj.ring_teeth / obj.planet_teeth
@@ -167,34 +139,31 @@ class PlanetaryGearSet:
         theta = theta_0 + float(obj.sun_angle - obj.ring_angle) / transmissionRatio
         n = 180 / (2*theta_0*planet_n)
         
-        while len(obj.planets_group.Group) < planet_n:
+        while len(obj.planets) < planet_n:
             # there are less links than needed, add extra
-            obj.planets_group.newObject("App::Link", "planet")
+            obj.planets += [self.create_gear(obj, "planet")]
         
-        for i in range(planet_n, len(obj.planets_group.Group)):
+        for planet in obj.planets[planet_n:]:
             # hide extra planets; If we remove them, and then try to increase
             # the amount of planets again - they won't be re-added.
             # I don't know why, but I've already spent weeks trying to fix this, so screw it.
-            obj.planets_group.Group[i].Visibility = False
+            planet.Visibility = False
 
         for i in range(planet_n):
             # update planet position factors to try to put all the planets
             # around the sun
             planet_pos = int(n*i)
             angle = pi/180*(theta + float(obj.ring_angle) + 4 * theta_0 * planet_pos)
-            planet = obj.planets_group.Group[i]
+            planet = obj.planets[i]
 
             planet.Visibility = True
-            planet.setLink(obj.planet_gear)
             planet.Placement.Base.x = planetCenterDistance * cos(angle)
             planet.Placement.Base.y = planetCenterDistance * sin(angle)
             planet.Placement.Rotation.Yaw = theta * (1 - ringPlanetRatio) + float(obj.ring_angle)
 
     def execute(self, obj):
-        print(f"Execute started; planets group size: {len(obj.planets_group.Group)}")
-        self.update_gears_teeth(obj)
-        self.update_planets_placements(obj)
-        print(f"Execute done; planets group size: {len(obj.planets_group.Group)}")
+        self.solve(obj)
+        self.update_planets(obj)
 
     def __getstate__(self):
         return None
