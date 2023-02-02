@@ -64,19 +64,19 @@ class PlanetaryGearSet:
         obj.ring_teeth = 53
         obj.addProperty("App::PropertyAngle", "ring_angle", "ring_properties")
         obj.ring_angle = 0
-        obj.addProperty("App::PropertyLinkHidden", "ring_gear", "ring_properties", 4)
+        obj.addProperty("App::PropertyLinkHidden", "ring_gear", "ring_properties", "", 4)
 
     def add_sun_properties(self, obj):
         obj.addProperty("App::PropertyInteger", "sun_teeth", "sun_properties")
         obj.sun_teeth = 17
         obj.addProperty("App::PropertyAngle", "sun_angle", "sun_properties")
         obj.sun_angle = 0
-        obj.addProperty("App::PropertyLinkHidden", "sun_gear", "sun_properties", 4)
+        obj.addProperty("App::PropertyLinkHidden", "sun_gear", "sun_properties", "", 4)
 
     def add_planet_properties(self, obj):
         obj.addProperty("App::PropertyInteger", "planet_teeth", "planet_properties")
         obj.planet_teeth = 18
-        obj.addProperty("App::PropertyLinkHidden", "planet_gear", "planet_properties", 4)
+        obj.addProperty("App::PropertyLinkHidden", "planet_gear", "planet_properties", "", 4)
 
     def add_computed_properties(self, obj):
         obj.addProperty("App::PropertyFloat", "sun_dw", "computed", "", 4)
